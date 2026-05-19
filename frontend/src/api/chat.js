@@ -1,6 +1,8 @@
+import { getApiUrl } from "./config";
+
 /** Sends user text → server → LM Studio. Returns { text } */
 export async function sendChat(sessionId, text) {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(getApiUrl("/api/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, text }),

@@ -1,13 +1,19 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const morgan = require("morgan");
-const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+if (!process.env.LM_STUDIO_BASE_URL) {
+  console.warn("\n⚠️  WARNING: LM_STUDIO_BASE_URL is not set in your environment or .env file!");
+  console.warn("   Your server is running, but requests requesting LM Studio will fail.");
+  console.warn("   Make sure backend/.env exists and is populated correctly.\n");
+}
 
 // ── In-memory session state ───────────────────────────────────────────────────
 let activeSession = null; // { sessionId, systemPrompt, startTime, lastActivity }
@@ -24,6 +30,16 @@ const FRONTEND_DIST = path.join(__dirname, "../frontend/dist");
 app.use(express.static(FRONTEND_DIST));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function checkLmStudioUrl(req, res, next) {
+  if (!process.env.LM_STUDIO_BASE_URL || process.env.LM_STUDIO_BASE_URL === "undefined") {
+    return res.status(500).json({
+      error: "LM Studio URL is not configured",
+      details: "LM_STUDIO_BASE_URL is missing or undefined. Please make sure the backend/.env file exists on the server and is configured correctly with LM_STUDIO_BASE_URL=http://<IP>:<PORT>."
+    });
+  }
+  next();
+}
+
 function buildSystemPrompt(useCase, mood, customPrompt) {
   const useCaseMap = {
     general:      "You are a helpful general-purpose conversational assistant.",
@@ -86,7 +102,7 @@ app.get("/api/health", (_req, res) => res.json({
 }));
 
 // Fetch all available/loaded models from LM Studio
-app.get("/api/models", async (_req, res) => {
+app.get("/api/models", checkLmStudioUrl, async (_req, res) => {
   try {
     const response = await axios.get(`${process.env.LM_STUDIO_BASE_URL}/v1/models`, { timeout: 5000 });
     return res.json(response.data);
@@ -102,7 +118,7 @@ app.get("/api/models", async (_req, res) => {
 });
 
 // Load a specific model in LM Studio
-app.post("/api/models/load", async (req, res) => {
+app.post("/api/models/load", checkLmStudioUrl, async (req, res) => {
   const { modelId } = req.body;
   if (!modelId) return res.status(400).json({ error: "modelId is required." });
 
@@ -177,7 +193,7 @@ app.post("/api/session/end", (req, res) => {
 });
 
 // Chat — receives text JSON, returns text JSON
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", checkLmStudioUrl, async (req, res) => {
   const { sessionId, text } = req.body;
   if (!sessionId || !text?.trim())
     return res.status(400).json({ error: "sessionId and text are required." });

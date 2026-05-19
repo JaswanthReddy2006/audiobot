@@ -1,5 +1,7 @@
+import { getApiUrl } from "./config";
+
 export async function createSession(useCase, mood, customPrompt, modelId) {
-  const res = await fetch("/api/session/create", {
+  const res = await fetch(getApiUrl("/api/session/create"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ useCase, mood, customPrompt, modelId }),
@@ -9,13 +11,13 @@ export async function createSession(useCase, mood, customPrompt, modelId) {
 }
 
 export async function pollSessionStatus(sessionId) {
-  const res = await fetch(`/api/session/status/${sessionId}`);
+  const res = await fetch(getApiUrl(`/api/session/status/${sessionId}`));
   if (!res.ok) throw new Error("Failed to poll session");
   return res.json(); // { status, position?, total? }
 }
 
 export async function endSession(sessionId) {
-  await fetch("/api/session/end", {
+  await fetch(getApiUrl("/api/session/end"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId }),
@@ -24,7 +26,7 @@ export async function endSession(sessionId) {
 
 /** Fetches the list of all available models from the backend (proxied from LM Studio) */
 export async function fetchModels() {
-  const res = await fetch("/api/models");
+  const res = await fetch(getApiUrl("/api/models"));
   if (!res.ok) throw new Error("Failed to fetch models from LM Studio");
   const data = await res.json();
   // Standard OpenAI response format is { data: [{ id: "model-name" }] }
@@ -33,7 +35,7 @@ export async function fetchModels() {
 
 /** Triggers LM Studio to load/reload a specific model */
 export async function loadModel(modelId) {
-  const res = await fetch("/api/models/load", {
+  const res = await fetch(getApiUrl("/api/models/load"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ modelId }),
@@ -44,3 +46,4 @@ export async function loadModel(modelId) {
   }
   return res.json();
 }
+
