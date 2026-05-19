@@ -13,10 +13,10 @@ export default function App() {
   const [sessionMeta, setMeta]      = useState({});
   const [loading, setLoading]       = useState(false);
 
-  const handleStart = useCallback(async (useCase, mood, customPrompt) => {
+  const handleStart = useCallback(async (useCase, mood, customPrompt, modelId) => {
     setLoading(true);
     try {
-      const data = await createSession(useCase, mood, customPrompt);
+      const data = await createSession(useCase, mood, customPrompt, modelId);
       setSessionId(data.sessionId);
       setMeta({ useCase, mood });
       setScreen(data.status === "active" ? "active" : "queue");

@@ -85,19 +85,64 @@ app.get("/api/health", (_req, res) => res.json({
   lmStudio: process.env.LM_STUDIO_BASE_URL,
 }));
 
+// Fetch all available/loaded models from LM Studio
+app.get("/api/models", async (_req, res) => {
+  try {
+    const response = await axios.get(`${process.env.LM_STUDIO_BASE_URL}/v1/models`, { timeout: 5000 });
+    return res.json(response.data);
+  } catch (err) {
+    try {
+      const response = await axios.get(`${process.env.LM_STUDIO_BASE_URL}/api/v1/models`, { timeout: 5000 });
+      return res.json(response.data);
+    } catch (innerErr) {
+      console.error("❌ Failed to fetch models from LM Studio:", innerErr.message);
+      return res.status(500).json({ error: "Could not fetch models from LM Studio.", details: innerErr.message });
+    }
+  }
+});
+
+// Load a specific model in LM Studio
+app.post("/api/models/load", async (req, res) => {
+  const { modelId } = req.body;
+  if (!modelId) return res.status(400).json({ error: "modelId is required." });
+
+  try {
+    const response = await axios.post(`${process.env.LM_STUDIO_BASE_URL}/api/v1/models/load`, {
+      model: modelId,
+      id: modelId
+    }, { timeout: 35000 });
+    process.env.LM_STUDIO_MODEL = modelId;
+    console.log(`🎯 Successfully loaded model in LM Studio: ${modelId}`);
+    return res.json({ success: true, details: response.data });
+  } catch (err) {
+    try {
+      const response = await axios.post(`${process.env.LM_STUDIO_BASE_URL}/v1/models/load`, {
+        model: modelId,
+        id: modelId
+      }, { timeout: 35000 });
+      process.env.LM_STUDIO_MODEL = modelId;
+      console.log(`🎯 Successfully loaded model in LM Studio: ${modelId}`);
+      return res.json({ success: true, details: response.data });
+    } catch (innerErr) {
+      console.error(`❌ Failed to load model ${modelId}:`, innerErr.message);
+      return res.status(500).json({ error: "Could not load model in LM Studio.", details: innerErr.message });
+    }
+  }
+});
+
 // Create session
 app.post("/api/session/create", (req, res) => {
-  const { useCase = "general", mood = "relaxed", customPrompt = "" } = req.body;
+  const { useCase = "general", mood = "relaxed", customPrompt = "", modelId = "" } = req.body;
   const sessionId = uuidv4();
   const systemPrompt = buildSystemPrompt(useCase, mood, customPrompt);
 
   if (!activeSession) {
-    activeSession = { sessionId, systemPrompt, startTime: Date.now(), lastActivity: Date.now() };
+    activeSession = { sessionId, systemPrompt, modelId, startTime: Date.now(), lastActivity: Date.now() };
     chatHistories.set(sessionId, []);
-    console.log(`🟢  Active: ${sessionId.slice(0,8)} [${useCase}/${mood}]`);
+    console.log(`🟢  Active: ${sessionId.slice(0,8)} [${useCase}/${mood}] model: ${modelId || "default"}`);
     return res.json({ status: "active", sessionId });
   }
-  sessionQueue.push({ sessionId, systemPrompt });
+  sessionQueue.push({ sessionId, systemPrompt, modelId });
   console.log(`⏳  Queued: ${sessionId.slice(0,8)} position ${sessionQueue.length}`);
   return res.json({ status: "queued", sessionId, position: sessionQueue.length });
 });
@@ -147,7 +192,7 @@ app.post("/api/chat", async (req, res) => {
     const response = await axios.post(
       `${process.env.LM_STUDIO_BASE_URL}/v1/chat/completions`,
       {
-        model: process.env.LM_STUDIO_MODEL || "local-model",
+        model: activeSession.modelId || process.env.LM_STUDIO_MODEL || "local-model",
         messages: [
           { role: "system", content: activeSession.systemPrompt },
           ...history,
