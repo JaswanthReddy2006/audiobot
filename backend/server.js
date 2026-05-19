@@ -171,7 +171,7 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // Catch-all for React Router
-app.get("*", (_req, res) =>
+app.get(/.*/, (_req, res) =>
   res.sendFile(path.join(FRONTEND_DIST, "index.html"))
 );
 
